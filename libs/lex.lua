@@ -10,7 +10,7 @@ local function lex(source, keywords)
             table.insert(tokens, { type = "NUMBER", value = number })
             pos = pos + #number
         elseif char:match("%a") then
-            local word = string.match(source, "^%a+", pos)
+            local word = string.match(source, "^[%a_][%a%d_]*", pos)
             if keywords[word] then
                 table.insert(tokens, { type = "KEYWORD", value = word })
             else
@@ -22,8 +22,14 @@ local function lex(source, keywords)
             table.insert(tokens, { type = "STRING", value = word })
             pos = pos + #word + 2
         else
-            table.insert(tokens, { type = "SYMBOL", value = char })
-            pos = pos + 1
+            local two_chars = source:sub(pos, pos + 1)
+            if two_chars == ">=" or two_chars == "<=" then
+                table.insert(tokens, { type = "SYMBOL", value = two_chars })
+                pos = pos + 2
+            else
+                table.insert(tokens, { type = "SYMBOL", value = char })
+                pos = pos + 1
+            end
         end
     end
     return tokens

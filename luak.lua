@@ -6,7 +6,13 @@ local KEYWORDS = {
     ["int"] = true,
     ["float"] = true,
     ["string"] = true,
-    ["print"] = true,
+    ["bool"] = true,
+    ["true"] = true,
+    ["false"] = true,
+    ["else"] = true,
+    ["end"] = true,
+    ["while"] = true,
+    
 }
 local lex = require("libs.lex")
 local parse = require("libs.parser")
@@ -26,6 +32,8 @@ local parsedTokens = parse(tokens)
 local lua_code = emit(parsedTokens)
 
 local outfile = makeLuaOutFile(lua_code, "out.lua")
+
+os.execute("lua out.lua")
 
 -- for i, statement in ipairs(parsedTokens) do
 --     print("--- Statement " .. i .. " ---")
