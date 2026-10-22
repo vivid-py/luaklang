@@ -11,15 +11,9 @@ local KEYWORDS = {
 local lex = require("libs.lex")
 local parse = require("libs.parser")
 local printAST = require("libs.debug")
-
-local function prepareFile (filepath)
-    local file = io.open(filepath, "r")
-    if not file then return nil end
-
-    local source = file:read("*a")
-    file:close()
-    return source
-end
+local prepareFile = require("libs.filePreparator")
+local emit = require("libs.emitter")
+local makeLuaOutFile = require("libs.makeoutlua")
 
 local file = prepareFile(filePath)
 if not file then
@@ -29,11 +23,14 @@ end
 local tokens = lex(file, KEYWORDS)
 local parsedTokens = parse(tokens)
 
--- Виводимо кожну інструкцію з масиву parsedTokens
-for i, statement in ipairs(parsedTokens) do
-    print("--- Statement " .. i .. " ---")
-    printAST(statement)
-end
+local lua_code = emit(parsedTokens)
+
+local outfile = makeLuaOutFile(lua_code, "out.lua")
+
+-- for i, statement in ipairs(parsedTokens) do
+--     print("--- Statement " .. i .. " ---")
+--     printAST(statement)
+-- end
 
 
 -- for _, tok in ipairs(tokens) do
