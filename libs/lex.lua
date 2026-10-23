@@ -1,4 +1,9 @@
 local function lex(source, keywords) 
+    keywords = keywords or {
+        ["let"] = true, ["if"] = true, ["do"] = true, 
+        ["int"] = true, ["float"] = true, ["string"] = true, ["bool"] = true, 
+        ["while"] = true, ["return"] = true, ["import"] = true, ["from"] = true,
+    }
     local tokens = {}
     local pos = 1
     while pos <= #source do
@@ -21,6 +26,12 @@ local function lex(source, keywords)
             local word = source:match('^"(.-)"', pos)
             table.insert(tokens, { type = "STRING", value = word })
             pos = pos + #word + 2
+            
+        elseif char == "#" then
+            -- Ігноруємо все до кінця рядка
+            while pos <= #source and source:sub(pos, pos) ~= "\n" do
+                pos = pos + 1
+            end
         else
             local two_chars = source:sub(pos, pos + 1)
             if two_chars == ">=" or two_chars == "<=" then

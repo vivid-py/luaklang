@@ -35,6 +35,7 @@ local function parse (tokens)
     local parse_assign
     local parse_fn
     local parse_return
+    local parse_import
 
     -- 1. ПАРСЕР ВИРАЗІВ (математика, дужки)
     local function parse_primary()
@@ -159,21 +160,27 @@ local function parse (tokens)
     parse_let = function()
         consume("KEYWORD", "let")
         
-        -- --- ПОЧАТОК ЗМІН ---
+        -- ОСЬ ВОНА, МАГІЯ ФУНКЦІЙ: якщо бачимо Ім'я + Дужку, це функція!
+        if peek().type == "IDENT" and tokens[pos+1] and tokens[pos+1].value == "(" then
+            return parse_fn()
+        end
+        
+        -- Далі йде парсинг звичайних змінних
         local var_type = ""
+        local name = ""
+
         if peek().value == "[" then
             consume("SYMBOL", "[")
-            var_type = "[" .. consume("KEYWORD").value .. "]"
+            var_type = "[" .. consume(peek().type).value .. "]"
             consume("SYMBOL", "]")
+            name = consume("IDENT").value
         elseif peek().type == "KEYWORD" or peek().type == "IDENT" then
-            -- Дозволяємо як int/string, так і User/Point
             var_type = consume(peek().type).value 
+            name = consume("IDENT").value
         else
-            error("Expected type")
+            error("Invalid let declaration")
         end
-        -- --- КІНЕЦЬ ЗМІН ---
 
-        local name = consume("IDENT").value
         consume("SYMBOL", "=")
         local value_node = parse_expression()
 
@@ -229,10 +236,16 @@ local function parse (tokens)
         }
     end
     parse_assign = function()
-        local name = consume("IDENT").value
+        -- Парсимо ліву частину (це може бути просто 'a', або 'user.name')
+        local target_expr = parse_expression()
+        
         consume("SYMBOL", "=")
+        
+        -- Парсимо праву частину
         local value_node = parse_expression()
-        return { tag = "Assign", name = name, value = value_node }
+        
+        -- Повертаємо вузол з полем 'target' (як очікує емітер)
+        return { tag = "Assign", target = target_expr, value = value_node }
     end
     parse_return = function()
         consume("KEYWORD", "return")
@@ -245,6 +258,19 @@ local function parse (tokens)
         
         return { tag = "Return", value = value }
     end
+    parse_import = function()
+        consume("KEYWORD", "import")
+        local name = consume("IDENT").value
+        
+        local path = nil
+        -- Якщо далі йде слово "from", значить ми вказуємо шлях
+        if peek() and peek().value == "from" then
+            consume("KEYWORD", "from")
+            path = consume("STRING").value -- шлях буде рядком у лапках
+        end
+        
+        return { tag = "Import", name = name, path = path }
+    end
 
     -- 3. ОСЬ ВОНА, МАГІЯ ТАБЛИЦЬ
     -- Ми кажемо: "якщо бачиш слово 'let' — виклич parse_let", і т.д.
@@ -253,6 +279,7 @@ local function parse (tokens)
         ["if"]  = parse_if,
         ["while"]  = parse_while,
         ["return"] = parse_return,
+        ["import"] = parse_import,
     }
 
     -- 4. ПАРСЕР БЛОКІВ (використовує таблицю)

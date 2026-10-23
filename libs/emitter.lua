@@ -4,19 +4,39 @@ local function emit(ast)
 
     Emitters["Number"] = function(node) return node.value end
     Emitters["String"] = function(node) return '"' .. node.value .. '"' end
-    Emitters["Identifier"] = function(node) return node.name end
+    Emitters["Identifier"] = function(node)
+        if node.name == "args" then return "arg" end 
+        return node.name 
+    end
     
     Emitters["BinaryOp"] = function(node)
         return "(" .. Emitters[node.left.tag](node.left) .. " " .. node.op .. " " .. Emitters[node.right.tag](node.right) .. ")"
     end
 
-    Emitters["Call"] = function(node)
+        Emitters["Call"] = function(node)
+        -- Визначаємо ім'я функції (воно може бути в target або просто name)
+        local func_name = ""
+        if node.target then
+            func_name = Emitters[node.target.tag](node.target)
+        elseif node.name then
+            func_name = node.name
+        end
+
+        local name_str = node.name or (node.target and node.target.name)
+
+        -- Вбудовані функції
+        if name_str == "read_file" then
+            return "(function() local f = io.open(" .. Emitters[node.args[1].tag](node.args[1]) .. ", 'r'); if f then local c = f:read('*a'); f:close(); return c end end)()"
+        elseif name_str == "write_file" then
+            return ";(function() local f = io.open(" .. Emitters[node.args[1].tag](node.args[1]) .. ", 'w'); if f then f:write(" .. Emitters[node.args[2].tag](node.args[2]) .. "); f:close() end end)()"
+        end
+        
+        -- Звичайний виклик
         local args = {}
         for _, arg in ipairs(node.args) do
             table.insert(args, Emitters[arg.tag](arg))
         end
-        -- Тепер target може бути як Identifier, так і Property
-        return Emitters[node.target.tag](node.target) .. "(" .. table.concat(args, ", ") .. ")"
+        return func_name .. "(" .. table.concat(args, ", ") .. ")"
     end
 
     Emitters["Let"] = function(node)
@@ -107,6 +127,11 @@ local function emit(ast)
     end
     Emitters["ExprStmt"] = function(node)
         return Emitters[node.expression.tag](node.expression)
+    end
+    Emitters["Import"] = function(node)
+        local req_path = node.path or node.name
+        req_path = req_path:gsub("/", ".")
+        return "local " .. node.name .. " = require(\"" .. req_path .. "\")"
     end
     -- Головний цикл
     local lines = {}

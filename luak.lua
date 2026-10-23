@@ -1,51 +1,59 @@
-local filePath = "main.luak"
 local KEYWORDS = {
-    ["let"] = true,
-    ["if"] = true,
-    ["do"] = true,
-    ["int"] = true,
-    ["float"] = true,
-    ["string"] = true,
-    ["bool"] = true,
-    ["true"] = true,
-    ["false"] = true,
-    ["else"] = true,
-    ["end"] = true,
-    ["while"] = true,
-    ["return"] = true,
-    
+    ["let"] = true, ["if"] = true, ["do"] = true,
+    ["int"] = true, ["float"] = true, ["string"] = true, ["bool"] = true,
+    ["true"] = true, ["false"] = true, ["else"] = true, ["end"] = true,
+    ["while"] = true, ["return"] = true, ["import"] = true, ["from"] = true,
 }
+
 local lex = require("libs.lex")
 local parse = require("libs.parser")
-local printAST = require("libs.debug")
-local prepareFile = require("libs.filePreparator")
 local emit = require("libs.emitter")
-local makeLuaOutFile = require("libs.makeoutlua")
 local typecheck = require("libs.typechecker")
+local prepareFile = require("libs.filePreparator")
+local makeLuaOutFile = require("libs.makeoutlua")
 
-local file = prepareFile(filePath)
-if not file then
-    print("Error, could not read file. ")
-    os.exit(1)
+-- Головна функція збірки
+local function build_file(filepath)
+    print("Compiling: " .. filepath)
+    
+    -- 1. Читаємо файл за допомогою ТВОГО модуля
+    local source = prepareFile(filepath)
+    if not source then
+        print("Error: Could not read " .. filepath)
+        return
+    end
+
+    -- 2. Компілюємо
+    local tokens = lex(source, KEYWORDS)
+    local ast = parse(tokens)
+    typecheck(ast)
+
+    -- 3. ШУКАЄМО ІМПОРТИ (рекурсія)
+    for _, node in ipairs(ast) do
+        if node.tag == "Import" then
+            local dep_path = node.path or node.name
+            local dep_luak = dep_path .. ".luak"
+            
+            -- Перевіряємо, чи існує файл .luak
+            local f = io.open(dep_luak, "r")
+            if f then
+                f:close()
+                build_file(dep_luak) -- Рекурсивно компілюємо залежність
+            end
+        end
+    end
+
+    -- 4. Генеруємо код і зберігаємо (за допомогою ТВОГО модуля)
+    local lua_code = emit(ast)
+    local out_path = filepath:gsub("%.luak$", ".lua") -- змінюємо розширення на .lua
+    makeLuaOutFile(lua_code, out_path)
 end
-local tokens = lex(file, KEYWORDS)
-local parsedTokens = parse(tokens)
-typecheck(parsedTokens)
 
-local lua_code = emit(parsedTokens)
+-- Запуск (можна передавати файл через термінал: lua luak.lua main.luak)
+local target_file = arg[1] or "main.luak"
+build_file(target_file)
 
-local outfile = makeLuaOutFile(lua_code, "out.lua")
-
-os.execute("lua out.lua")
-
--- for i, statement in ipairs(parsedTokens) do
---     print("--- Statement " .. i .. " ---")
---     printAST(statement)
--- end
-
-
--- for _, tok in ipairs(tokens) do
---     print(string.format("[%s] %s", tok.type, tok.value))
--- end
-
-
+print("\n \n")
+local output_file = target_file:gsub("%.luak$", ".lua")
+print("\n--- Running output --- \n")
+os.execute("lua " .. output_file) -- запускаємо main.lua, а не main.luak!
