@@ -77,6 +77,20 @@ local function emit(ast)
             return "return"
         end
     end
+    Emitters["Array"] = function(node)
+        local elements = {}
+        for _, el in ipairs(node.elements) do
+            table.insert(elements, Emitters[el.tag](el))
+        end
+        return "{" .. table.concat(elements, ", ") .. "}"
+    end
+
+    Emitters["Index"] = function(node)
+        local target_code = Emitters[node.target.tag](node.target)
+        local index_code = Emitters[node.index.tag](node.index)
+        -- ОСЬ ВОНА, МАГІЯ 0-BASED -> 1-BASED
+        return target_code .. "[" .. index_code .. " + 1]"
+    end
     -- Головний цикл
     local lines = {}
     for _, node in ipairs(ast) do

@@ -45,6 +45,16 @@ local function parse (tokens)
             consume("SYMBOL", ")")
             return expr
         end
+        if tok.value == "[" then
+            consume("SYMBOL", "[")
+            local elements = {}
+            while peek() and peek().value ~= "]" do
+                table.insert(elements, parse_expression())
+                if peek() and peek().value == "," then consume("SYMBOL", ",") end
+            end
+            consume("SYMBOL", "]")
+            return { tag = "Array", elements = elements }
+        end
 
         if tok.type == "NUMBER" then
             consume("NUMBER")
@@ -63,6 +73,16 @@ local function parse (tokens)
                 end
                 consume("SYMBOL", ")")
                 return { tag = "Call", name = tok.value, args = args }
+            end
+            if peek() and peek().value == "[" then
+                consume("SYMBOL", "[")
+                local index_expr = parse_expression()
+                consume("SYMBOL", "]")
+                return { 
+                    tag = "Index", 
+                    target = { tag = "Identifier", name = tok.value }, 
+                    index = index_expr 
+                }
             end
             return { tag = "Identifier", name = tok.value }
         else
@@ -119,16 +139,23 @@ local function parse (tokens)
     parse_let = function()
         consume("KEYWORD", "let")
         
-        -- МАГІЯ ТУТ: дивимось на 2 токени вперед. Якщо це Ім'я + Дужка, то це функція!
-        if peek().type == "IDENT" and tokens[pos+1] and tokens[pos+1].value == "(" then
-            return parse_fn()
+        -- --- ПОЧАТОК ЗМІН ---
+        local var_type = ""
+        -- Якщо бачимо квадратну дужку, це масив
+        if peek().value == "[" then
+            consume("SYMBOL", "[")
+            var_type = "[" .. consume("KEYWORD").value .. "]" -- зберігаємо як "[int]"
+            consume("SYMBOL", "]")
+        else
+            -- Звичайний тип (int, float, string)
+            var_type = consume("KEYWORD").value 
         end
-        
-        -- Інакше це звичайна змінна (let int a = 5)
-        local var_type = consume("KEYWORD").value 
+        -- --- КІНЕЦЬ ЗМІН ---
+
         local name = consume("IDENT").value
         consume("SYMBOL", "=")
         local value_node = parse_expression()
+
         return { tag = "Let", var_type = var_type, name = name, value = value_node }
     end
 
