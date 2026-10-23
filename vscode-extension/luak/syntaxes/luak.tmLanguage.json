@@ -1,0 +1,42 @@
+{
+    "scopeName": "source.luak",
+    "patterns": [
+        { "include": "#keywords" },
+        { "include": "#types" },
+        { "include": "#strings" },
+        { "include": "#numbers" },
+        { "include": "#comments" }
+    ],
+    "repository": {
+        "keywords": {
+            "patterns": [{
+                "name": "keyword.control.luak",
+                "match": "\\b(let|if|else|while|return|import|from|do|end)\\b"
+            }]
+        },
+        "types": {
+            "patterns": [{
+                "name": "storage.type.luak",
+                "match": "\\b(int|float|string|bool)\\b"
+            }]
+        },
+        "strings": {
+            "patterns": [{
+                "name": "string.quoted.double.luak",
+                "begin": "\"", "end": "\""
+            }]
+        },
+        "numbers": {
+            "patterns": [{
+                "name": "constant.numeric.luak",
+                "match": "\\b\\d+(\\.\\d+)?\\b"
+            }]
+        },
+        "comments": {
+            "patterns": [{
+                "name": "comment.line.number-sign.luak",
+                "match": "#.*$"
+            }]
+        }
+    }
+}

@@ -1,0 +1,37 @@
+{
+  "name": "luak",
+  "displayName": "luaklang",
+  "description": "LuakLang Language syntax support",
+  "version": "0.0.1",
+  "publisher": "vivid-py",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "luak",
+    "luaklang",
+    "lua",
+    "programming language"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vivid-py/luaklang.git"
+  },
+  "contributes": {
+    "languages": [{
+      "id": "luak",
+      "aliases": ["luak", "Luak"],
+      "extensions": [".luak"],
+      "configuration": "./language-configuration.json"
+    }],
+    "grammars": [{
+      "language": "luak",
+      "scopeName": "source.luak",
+      "path": "./syntaxes/luak.tmLanguage.json"
+    }]
+  }
+}
