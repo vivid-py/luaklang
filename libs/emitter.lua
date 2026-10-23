@@ -57,7 +57,26 @@ local function emit(ast)
         end
         return handler(node)
     end
-    
+    Emitters["Fn"] = function(node)
+        local param_names = {}
+        for _, p in ipairs(node.params) do
+            table.insert(param_names, p.name)
+        end
+        
+        local code = "local function " .. node.name .. "(" .. table.concat(param_names, ", ") .. ")\n"
+        for _, stmt in ipairs(node.body) do
+            code = code .. "  " .. Emitters[stmt.tag](stmt) .. "\n"
+        end
+        code = code .. "end"
+        return code
+    end
+    Emitters["Return"] = function(node)
+        if node.value then
+            return "return " .. Emitters[node.value.tag](node.value)
+        else
+            return "return"
+        end
+    end
     -- Головний цикл
     local lines = {}
     for _, node in ipairs(ast) do

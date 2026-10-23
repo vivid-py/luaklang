@@ -12,6 +12,7 @@ local KEYWORDS = {
     ["else"] = true,
     ["end"] = true,
     ["while"] = true,
+    ["return"] = true,
     
 }
 local lex = require("libs.lex")

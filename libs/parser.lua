@@ -32,6 +32,8 @@ local function parse (tokens)
     local parse_if
     local parse_while
     local parse_assign
+    local parse_fn
+    local parse_return
 
     -- 1. ПАРСЕР ВИРАЗІВ (математика, дужки)
     local function parse_primary()
@@ -90,13 +92,43 @@ local function parse (tokens)
     end
 
     -- 2. ПАРСЕРИ ІНСТРУКЦІЙ (let, if, call)
+    parse_fn = function()
+        -- Ми вже з'їли "let", тому починаємо з імені
+        local name = consume("IDENT").value
+        consume("SYMBOL", "(")
+        
+        local params = {}
+        -- Парсимо параметри: int ab, string bc
+        while peek() and peek().value ~= ")" do
+            local p_type = consume("KEYWORD").value -- тип (int, string)
+            local p_name = consume("IDENT").value   -- ім'я (ab, bc)
+            table.insert(params, { type = p_type, name = p_name })
+            
+            if peek() and peek().value == "," then consume("SYMBOL", ",") end
+        end
+        
+        consume("SYMBOL", ")")
+        consume("KEYWORD", "do") -- твій маркер початку тіла функції
+        
+        local body = parse_block()
+        consume("KEYWORD", "end")
+        
+        return { tag = "Fn", name = name, params = params, body = body }
+    end
+
     parse_let = function()
         consume("KEYWORD", "let")
+        
+        -- МАГІЯ ТУТ: дивимось на 2 токени вперед. Якщо це Ім'я + Дужка, то це функція!
+        if peek().type == "IDENT" and tokens[pos+1] and tokens[pos+1].value == "(" then
+            return parse_fn()
+        end
+        
+        -- Інакше це звичайна змінна (let int a = 5)
         local var_type = consume("KEYWORD").value 
         local name = consume("IDENT").value
         consume("SYMBOL", "=")
         local value_node = parse_expression()
-
         return { tag = "Let", var_type = var_type, name = name, value = value_node }
     end
 
@@ -154,6 +186,17 @@ local function parse (tokens)
         local value_node = parse_expression()
         return { tag = "Assign", name = name, value = value_node }
     end
+    parse_return = function()
+        consume("KEYWORD", "return")
+        local value = nil
+        
+        -- Якщо після return йде щось, крім end (наприклад, вираз), парсимо його
+        if peek() and peek().value ~= "end" and peek().value ~= "else" then
+            value = parse_expression()
+        end
+        
+        return { tag = "Return", value = value }
+    end
 
     -- 3. ОСЬ ВОНА, МАГІЯ ТАБЛИЦЬ
     -- Ми кажемо: "якщо бачиш слово 'let' — виклич parse_let", і т.д.
@@ -161,6 +204,7 @@ local function parse (tokens)
         ["let"] = parse_let,
         ["if"]  = parse_if,
         ["while"]  = parse_while,
+        ["return"] = parse_return,
     }
 
     -- 4. ПАРСЕР БЛОКІВ (використовує таблицю)
