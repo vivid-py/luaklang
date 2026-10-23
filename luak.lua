@@ -21,6 +21,7 @@ local printAST = require("libs.debug")
 local prepareFile = require("libs.filePreparator")
 local emit = require("libs.emitter")
 local makeLuaOutFile = require("libs.makeoutlua")
+local typecheck = require("libs.typechecker")
 
 local file = prepareFile(filePath)
 if not file then
@@ -29,6 +30,7 @@ if not file then
 end
 local tokens = lex(file, KEYWORDS)
 local parsedTokens = parse(tokens)
+typecheck(parsedTokens)
 
 local lua_code = emit(parsedTokens)
 
