@@ -1,3 +1,4 @@
+ -- parser.lua
 local function parse (tokens)
     local pos = 1
     
@@ -55,6 +56,21 @@ local function parse (tokens)
             consume("SYMBOL", "]")
             return { tag = "Array", elements = elements }
         end
+        if tok.value == "{" then
+            consume("SYMBOL", "{")
+            local fields = {}
+            while peek() and peek().value ~= "}" do
+                local key = consume("IDENT").value -- ім'я поля
+                consume("SYMBOL", ":")             -- двокрапка
+                local value = parse_expression()   -- значення
+                
+                table.insert(fields, { key = key, value = value })
+                
+                if peek() and peek().value == "," then consume("SYMBOL", ",") end
+            end
+            consume("SYMBOL", "}")
+            return { tag = "Struct", fields = fields }
+        end
 
         if tok.type == "NUMBER" then
             consume("NUMBER")
@@ -64,29 +80,33 @@ local function parse (tokens)
             return { tag = "String", value = tok.value }
         elseif tok.type == "IDENT" then
             consume("IDENT")
-            if peek() and peek().value == "(" then
-                consume("SYMBOL", "(")
-                local args = {}
-                while peek() and peek().value ~= ")" do
-                    table.insert(args, parse_primary())
-                    if peek() and peek().value == "," then consume("SYMBOL", ",") end
+            local node = { tag = "Identifier", name = tok.value }
+
+            -- Нескінченний цикл для обробки ланцюжків: a.b.c(), a[0].name
+            while true do
+                if peek() and peek().value == "." then
+                    consume("SYMBOL", ".")
+                    local prop_name = consume("IDENT").value
+                    node = { tag = "Property", target = node, property = prop_name }
+                elseif peek() and peek().value == "[" then
+                    consume("SYMBOL", "[")
+                    local index_expr = parse_expression()
+                    consume("SYMBOL", "]")
+                    node = { tag = "Index", target = node, index = index_expr }
+                elseif peek() and peek().value == "(" then
+                    consume("SYMBOL", "(")
+                    local args = {}
+                    while peek() and peek().value ~= ")" do
+                        table.insert(args, parse_expression())
+                        if peek() and peek().value == "," then consume("SYMBOL", ",") end
+                    end
+                    consume("SYMBOL", ")")
+                    node = { tag = "Call", target = node, args = args }
+                else
+                    break -- Якщо далі нічого немає, виходимо з циклу
                 end
-                consume("SYMBOL", ")")
-                return { tag = "Call", name = tok.value, args = args }
             end
-            if peek() and peek().value == "[" then
-                consume("SYMBOL", "[")
-                local index_expr = parse_expression()
-                consume("SYMBOL", "]")
-                return { 
-                    tag = "Index", 
-                    target = { tag = "Identifier", name = tok.value }, 
-                    index = index_expr 
-                }
-            end
-            return { tag = "Identifier", name = tok.value }
-        else
-            error("Unexpected token in expression: " .. tok.value)
+            return node
         end
     end
 
@@ -141,14 +161,15 @@ local function parse (tokens)
         
         -- --- ПОЧАТОК ЗМІН ---
         local var_type = ""
-        -- Якщо бачимо квадратну дужку, це масив
         if peek().value == "[" then
             consume("SYMBOL", "[")
-            var_type = "[" .. consume("KEYWORD").value .. "]" -- зберігаємо як "[int]"
+            var_type = "[" .. consume("KEYWORD").value .. "]"
             consume("SYMBOL", "]")
+        elseif peek().type == "KEYWORD" or peek().type == "IDENT" then
+            -- Дозволяємо як int/string, так і User/Point
+            var_type = consume(peek().type).value 
         else
-            -- Звичайний тип (int, float, string)
-            var_type = consume("KEYWORD").value 
+            error("Expected type")
         end
         -- --- КІНЕЦЬ ЗМІН ---
 
@@ -252,8 +273,20 @@ local function parse (tokens)
                 else
                     table.insert(block, parse_call())   -- інакше це виклик функції
                 end
+                -- В parse_block:
             else
-                error("Unexpected token in block: " .. tok.value)
+                -- Парсимо ліву частину (наприклад, a, user.name, print(...))
+                local expr = parse_expression()
+                
+                -- Якщо після цього йде =, то це присвоєння
+                if peek() and peek().value == "=" then
+                    consume("SYMBOL", "=")
+                    local value = parse_expression()
+                    table.insert(block, { tag = "Assign", target = expr, value = value })
+                else
+                    -- Інакше це просто вираз (наприклад, виклик функції)
+                    table.insert(block, { tag = "ExprStmt", expression = expr })
+                end
             end
         end
         return block
@@ -263,19 +296,19 @@ local function parse (tokens)
     local ast = {}
     while pos <= #tokens do
         local tok = peek()
-        
         local parser_fn = StatementParsers[tok.value]
         
         if parser_fn then
             table.insert(ast, parser_fn())
-        elseif tok.type == "IDENT" then
-            if tokens[pos + 1] and tokens[pos + 1].value == "=" then
-                table.insert(ast, parse_assign())
-            else
-                table.insert(ast, parse_call())
-            end
         else
-            error("Unknown statement starting with: " .. tok.value)
+            local expr = parse_expression()
+            if peek() and peek().value == "=" then
+                consume("SYMBOL", "=")
+                local value = parse_expression()
+                table.insert(ast, { tag = "Assign", target = expr, value = value })
+            else
+                table.insert(ast, { tag = "ExprStmt", expression = expr })
+            end
         end
     end
     

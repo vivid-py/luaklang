@@ -15,7 +15,8 @@ local function emit(ast)
         for _, arg in ipairs(node.args) do
             table.insert(args, Emitters[arg.tag](arg))
         end
-        return node.name .. "(" .. table.concat(args, ", ") .. ")"
+        -- Тепер target може бути як Identifier, так і Property
+        return Emitters[node.target.tag](node.target) .. "(" .. table.concat(args, ", ") .. ")"
     end
 
     Emitters["Let"] = function(node)
@@ -47,7 +48,8 @@ local function emit(ast)
         return code
     end
     Emitters["Assign"] = function(node)
-        return node.name .. " = " .. Emitters[node.value.tag](node.value)
+        -- target тепер може бути змінною або властивістю
+        return Emitters[node.target.tag](node.target) .. " = " .. Emitters[node.value.tag](node.value)
     end
     -- 2. Головна функція просто шукає потрібну функцію в таблиці за тегом!
     local function emit_node(node)
@@ -90,6 +92,21 @@ local function emit(ast)
         local index_code = Emitters[node.index.tag](node.index)
         -- ОСЬ ВОНА, МАГІЯ 0-BASED -> 1-BASED
         return target_code .. "[" .. index_code .. " + 1]"
+    end
+    Emitters["Struct"] = function(node)
+        local fields = {}
+        for _, f in ipairs(node.fields) do
+            -- У Lua структура це { key = value }, тому міняємо : на =
+            table.insert(fields, f.key .. " = " .. Emitters[f.value.tag](f.value))
+        end
+        return "{ " .. table.concat(fields, ", ") .. " }"
+    end
+    Emitters["Property"] = function(node)
+        -- Генеруємо a.b.c
+        return Emitters[node.target.tag](node.target) .. "." .. node.property
+    end
+    Emitters["ExprStmt"] = function(node)
+        return Emitters[node.expression.tag](node.expression)
     end
     -- Головний цикл
     local lines = {}
