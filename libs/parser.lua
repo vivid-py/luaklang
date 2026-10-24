@@ -20,9 +20,10 @@ local function parse (tokens)
     end
 
     local PRECEDENCE = {
+        ["=="] = 5, ["!="] = 5,
+        ["<"] = 5,  [">"] = 5, ["<="] = 5, [">="] = 5,
         ["+"] = 10, ["-"] = 10,
-        ["*"] = 20, ["/"] = 20,
-        ["<"] = 5,  [">"] = 5, ["<="] = 5, [">="] = 5
+        ["*"] = 20, ["/"] = 20, ["%"] = 20,["**"] = 20, ["//"] = 20,
     }
     
     -- Форвард-декларація (щоб уникнути помилок рекурсії)
@@ -38,8 +39,15 @@ local function parse (tokens)
     local parse_import
 
     -- 1. ПАРСЕР ВИРАЗІВ (математика, дужки)
-    local function parse_primary()
+        local function parse_primary()
         local tok = peek()
+        if not tok then error("Unexpected end of file in expression") end
+
+        if tok.value == "-" then
+            consume("SYMBOL", "-")
+            local expr = parse_primary()
+            return { tag = "UnaryOp", op = "-", operand = expr }
+        end
 
         if tok.value == "(" then
             consume("SYMBOL", "(")
@@ -61,19 +69,24 @@ local function parse (tokens)
             consume("SYMBOL", "{")
             local fields = {}
             while peek() and peek().value ~= "}" do
-                local key = consume("IDENT").value -- ім'я поля
-                consume("SYMBOL", ":")             -- двокрапка
-                local value = parse_expression()   -- значення
-                
+                local key = consume("IDENT").value
+                consume("SYMBOL", ":")
+                local value = parse_expression()
                 table.insert(fields, { key = key, value = value })
-                
                 if peek() and peek().value == "," then consume("SYMBOL", ",") end
             end
             consume("SYMBOL", "}")
             return { tag = "Struct", fields = fields }
         end
 
-        if tok.type == "NUMBER" then
+        -- ОСЬ ВОНО, ДОДАНО BOOL
+        if tok.value == "true" then
+            consume("KEYWORD", "true")
+            return { tag = "Bool", value = true }
+        elseif tok.value == "false" then
+            consume("KEYWORD", "false")
+            return { tag = "Bool", value = false }
+        elseif tok.type == "NUMBER" then
             consume("NUMBER")
             return { tag = "Number", value = tok.value }
         elseif tok.type == "STRING" then
@@ -83,7 +96,6 @@ local function parse (tokens)
             consume("IDENT")
             local node = { tag = "Identifier", name = tok.value }
 
-            -- Нескінченний цикл для обробки ланцюжків: a.b.c(), a[0].name
             while true do
                 if peek() and peek().value == "." then
                     consume("SYMBOL", ".")
@@ -104,10 +116,13 @@ local function parse (tokens)
                     consume("SYMBOL", ")")
                     node = { tag = "Call", target = node, args = args }
                 else
-                    break -- Якщо далі нічого немає, виходимо з циклу
+                    break
                 end
             end
             return node
+        else
+            -- ЗАПОБІЖНИК ВІД ЗАВИСАНЬ
+            error("Unexpected token in expression: " .. tostring(tok.value) .. " at pos " .. pos)
         end
     end
 
@@ -285,33 +300,19 @@ local function parse (tokens)
     -- 4. ПАРСЕР БЛОКІВ (використовує таблицю)
     parse_block = function()
         local block = {}
-        -- Читаємо, поки не натрапимо на кінець блоку
         while peek() and peek().value ~= "end" and peek().value ~= "else" do
             local tok = peek()
-            
-            -- ШУКАЄМО В ТАБЛИЦІ: чи є парсер для цього слова?
             local parser_fn = StatementParsers[tok.value]
             
             if parser_fn then
                 table.insert(block, parser_fn())
-            elseif tok.type == "IDENT" then
-                if tokens[pos + 1] and tokens[pos + 1].value == "=" then
-                    table.insert(block, parse_assign()) -- якщо далі "=", це присвоєння
-                else
-                    table.insert(block, parse_call())   -- інакше це виклик функції
-                end
-                -- В parse_block:
             else
-                -- Парсимо ліву частину (наприклад, a, user.name, print(...))
                 local expr = parse_expression()
-                
-                -- Якщо після цього йде =, то це присвоєння
                 if peek() and peek().value == "=" then
                     consume("SYMBOL", "=")
                     local value = parse_expression()
                     table.insert(block, { tag = "Assign", target = expr, value = value })
                 else
-                    -- Інакше це просто вираз (наприклад, виклик функції)
                     table.insert(block, { tag = "ExprStmt", expression = expr })
                 end
             end

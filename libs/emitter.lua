@@ -1,7 +1,9 @@
 local function emit(ast)
     -- 1. Створюємо таблицю, де ключі — це теги вузлів, а значення — функції
     local Emitters = {}
-
+    Emitters["Bool"] = function(node) 
+        return tostring(node.value) 
+    end
     Emitters["Number"] = function(node) return node.value end
     Emitters["String"] = function(node) return '"' .. node.value .. '"' end
     Emitters["Identifier"] = function(node)
@@ -10,10 +12,16 @@ local function emit(ast)
     end
     
     Emitters["BinaryOp"] = function(node)
-        return "(" .. Emitters[node.left.tag](node.left) .. " " .. node.op .. " " .. Emitters[node.right.tag](node.right) .. ")"
+        local op = node.op
+        if op == "!=" then op = "~=" end -- Lua використовує ~=
+        if op == "**" then op = "^" end
+        return "(" .. Emitters[node.left.tag](node.left) .. " " .. op .. " " .. Emitters[node.right.tag](node.right) .. ")"
+    end
+    Emitters["UnaryOp"] = function(node)
+        return "(-" .. Emitters[node.operand.tag](node.operand) .. ")"
     end
 
-        Emitters["Call"] = function(node)
+    Emitters["Call"] = function(node)
         -- Визначаємо ім'я функції (воно може бути в target або просто name)
         local func_name = ""
         if node.target then

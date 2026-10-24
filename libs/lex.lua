@@ -8,7 +8,7 @@ local function lex(source, keywords)
     local pos = 1
     while pos <= #source do
         local char = source:sub(pos, pos)
-        if char == " " or char == "\n" or char == "\t" then
+        if char == " " or char == "\n" or char == "\t" or char == "\r" then
             pos = pos + 1
         elseif char:match("%d") then
             local number = source:match("^%d+%.?%d*", pos)
@@ -34,7 +34,8 @@ local function lex(source, keywords)
             end
         else
             local two_chars = source:sub(pos, pos + 1)
-            if two_chars == ">=" or two_chars == "<=" then
+            if two_chars == ">=" or two_chars == "<=" or two_chars == "==" or two_chars == "!=" 
+            or two_chars == "**" or two_chars == "//" then
                 table.insert(tokens, { type = "SYMBOL", value = two_chars })
                 pos = pos + 2
             else

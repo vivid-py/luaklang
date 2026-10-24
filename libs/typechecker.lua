@@ -1,10 +1,16 @@
 local function typecheck(ast)
     local env = {}
     local Checkers = {}
-    local walk -- Форвард-декларація
+    local walk
 
-    Checkers["Number"] = function(node) return "int" end
+    Checkers["Number"] = function(node)
+        if string.find(node.value, "%.", 1, true) then
+            return "float"
+        end
+        return "int"
+    end
     Checkers["String"] = function(node) return "string" end
+    Checkers["Bool"] = function(node) return "bool" end
     
     Checkers["Identifier"] = function(node)
         if node.name == "args" then return "[string]" end
@@ -18,7 +24,7 @@ local function typecheck(ast)
     end
 
     Checkers["Let"] = function(node)
-        local value_type = Checkers[node.value.tag](node.value)
+        local value_type = walk(node.value)
         if node.var_type ~= "any" and node.var_type ~= value_type and value_type ~= "any" and value_type ~= "function" then
             error("TypeError: Cannot assign " .. value_type .. " to variable of type " .. node.var_type)
         end
@@ -27,23 +33,47 @@ local function typecheck(ast)
     end
 
     Checkers["BinaryOp"] = function(node)
-        local left_type = Checkers[node.left.tag](node.left)
-        local right_type = Checkers[node.right.tag](node.right)
-        if left_type ~= right_type then
-            error("TypeError: Cannot apply '" .. node.op .. "' to " .. left_type .. " and " .. right_type)
+        local left_type = walk(node.left)
+        local right_type = walk(node.right)
+        
+        local op = node.op
+        
+        -- Математика: дозволяємо змішувати int та float
+        if op == "+" or op == "-" or op == "*" or op == "/" or op == "%" or op == "**" then
+            if left_type == "float" or right_type == "float" then
+                return "float"
+            end
+            return "int"
         end
+        
+        -- Порівняння: типи мають співпадати (окрім int/float)
+        if left_type ~= right_type and left_type ~= "any" and right_type ~= "any" 
+           and not (left_type == "float" and right_type == "int") 
+           and not (left_type == "int" and right_type == "float") then
+            error("TypeError: Cannot compare " .. left_type .. " and " .. right_type)
+        end
+        
+        -- Оператори порівняння повертають bool
+        if op == "==" or op == "!=" or op == "<" or op == ">" or op == "<=" or op == ">=" then
+            return "bool"
+        end
+        
         return left_type
     end
 
+    Checkers["UnaryOp"] = function(node)
+        local operand_type = walk(node.operand)
+        return operand_type
+    end
+
     Checkers["Assign"] = function(node)
-        local target_type = Checkers[node.target.tag](node.target)
-        local value_type = Checkers[node.value.tag](node.value)
+        local target_type = walk(node.target)
+        local value_type = walk(node.value)
         if target_type ~= value_type then
             error("TypeError: Cannot assign " .. value_type .. " to " .. target_type)
         end
     end
 
-    -- ДОДАНО ПЕРЕВІРКУ ДЛЯ СТРУКТУР (потрібно для return { add: add })
     Checkers["Struct"] = function(node)
         for _, field in ipairs(node.fields) do
             walk(field.value)
@@ -51,7 +81,6 @@ local function typecheck(ast)
         return "struct"
     end
 
-    -- ДОДАНО ПЕРЕВІРКУ ДЛЯ МАСИВІВ
     Checkers["Array"] = function(node)
         for _, el in ipairs(node.elements) do
             walk(el)
@@ -60,8 +89,20 @@ local function typecheck(ast)
     end
 
     Checkers["ExprStmt"] = function(node) walk(node.expression) end
-    Checkers["If"] = function(node) return "void" end
     Checkers["While"] = function(node) return "void" end
+    
+    Checkers["If"] = function(node)
+        walk(node.condition)
+        for _, stmt in ipairs(node.then_block) do
+            walk(stmt)
+        end
+        if node.else_block then
+            for _, stmt in ipairs(node.else_block) do
+                walk(stmt)
+            end
+        end
+        return "void"
+    end
     
     Checkers["Call"] = function(node)
         if node.target then walk(node.target) end
@@ -98,7 +139,7 @@ local function typecheck(ast)
         end
         
         env = old_env
-        env[node.name] = "function" -- ДОДАНО: реєструємо функцію в середовищі
+        env[node.name] = "function"
         return "function"
     end
 
@@ -109,8 +150,8 @@ local function typecheck(ast)
         return "void"
     end
 
-    -- ВИПРАВЛЕНО: прибрано 'local' перед function walk, щоб не затіняти змінну
     walk = function(node)
+        if not node then error("TypeChecker: got nil node") end
         local checker = Checkers[node.tag]
         if not checker then
             error("TypeChecker: Unknown node type " .. tostring(node.tag))

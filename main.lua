@@ -1,6 +1,6 @@
-local add = require("summ")
-local a = 0
-while (a < 10) do
-  print(add(a, 5))
-  a = (a + 1)
-end
+local math = require("std.math")
+print(math.sqrt(9))
+print(math.pow(2, 10))
+print(math.sign((-5)))
+print(math.is_even(4))
+print(math.abs((-7)))
