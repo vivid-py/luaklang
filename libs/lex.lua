@@ -13,6 +13,10 @@ local function lex(source, keywords)
             pos = pos + 1
         elseif char:match("%d") then
             local number = source:match("^%d+%.?%d*", pos)
+            -- ФІКС: якщо число закінчується на крапку, а наступний символ теж крапка — це діапазон, а не float!
+            if number:sub(-1) == "." and source:sub(pos + #number, pos + #number) == "." then
+                number = number:sub(1, -2) -- відрізаємо цю крапку, вона належить оператору ..
+            end
             table.insert(tokens, { type = "NUMBER", value = number })
             pos = pos + #number
         elseif char:match("%a") then
@@ -36,7 +40,7 @@ local function lex(source, keywords)
         else
             local two_chars = source:sub(pos, pos + 1)
             if two_chars == ">=" or two_chars == "<=" or two_chars == "==" or two_chars == "!=" 
-            or two_chars == "**" or two_chars == "//" or two_chars == ".." then
+            or two_chars == "**" or two_chars == "//" or two_chars == ".." then  -- <-- ДОДАЙ ".."
                 table.insert(tokens, { type = "SYMBOL", value = two_chars })
                 pos = pos + 2
             else

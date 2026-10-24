@@ -2,8 +2,8 @@ local KEYWORDS = {
     ["let"] = true, ["if"] = true, ["do"] = true,
     ["int"] = true, ["float"] = true, ["string"] = true, ["bool"] = true,
     ["true"] = true, ["false"] = true, ["else"] = true, ["end"] = true,
-    ["while"] = true, ["return"] = true, ["import"] = true, ["from"] = true,
-    ["for"] = true, ["in"] = true,
+    ["while"] = true, ["for"] = true, ["in"] = true,  -- <-- МАЄ БУТИ ТУТ
+    ["return"] = true, ["import"] = true, ["from"] = true,
 }
 
 local lex = require("libs.lex")

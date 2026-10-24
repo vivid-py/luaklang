@@ -82,10 +82,23 @@ local function typecheck(ast)
     end
 
     Checkers["Array"] = function(node)
-        for _, el in ipairs(node.elements) do
-            walk(el)
+        if #node.elements == 0 then
+            return "[any]" -- порожній масив
         end
-        return "array"
+        
+        -- Беремо тип першого елемента
+        local first_type = walk(node.elements[1])
+        
+        -- Перевіряємо, чи всі інші елементи такого ж типу
+        for i = 2, #node.elements do
+            local el_type = walk(node.elements[i])
+            if el_type ~= first_type then
+                error("TypeError: Array elements must have the same type")
+            end
+        end
+        
+        -- Повертаємо тип у дужках, наприклад "[int]"
+        return "[" .. first_type .. "]"
     end
 
     Checkers["ExprStmt"] = function(node) walk(node.expression) end
