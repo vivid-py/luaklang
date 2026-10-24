@@ -3,7 +3,7 @@ node_modules/
 *.vsix
 out/
 .vscode-test/
-
+.DS_STORE
 # Compiled Lua sources
 luac.out
 # luarocks build files

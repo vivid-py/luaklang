@@ -14,7 +14,7 @@ local function typecheck(ast)
     
     Checkers["Identifier"] = function(node)
         if node.name == "args" then return "[string]" end
-        if node.name == "print" or node.name == "read_file" or node.name == "write_file" then return "function" end
+        if node.name == "print" or node.name == "read_file" or node.name == "write_file" or node.name == "exec" or node.name == "exec_out" then return "function" end
         
         local var_type = env[node.name]
         if not var_type then
@@ -149,7 +149,30 @@ local function typecheck(ast)
         end
         return "void"
     end
+    Checkers["ForRange"] = function(node)
+        walk(node.start)
+        walk(node.finish)
+        local old_env = {}
+        for k, v in pairs(env) do old_env[k] = v end
+        env[node.var_name] = "int" -- змінна циклу це int
+        for _, stmt in ipairs(node.body) do
+            walk(stmt)
+        end
+        env = old_env
+        return "void"
+    end
 
+    Checkers["ForIn"] = function(node)
+        walk(node.collection)
+        local old_env = {}
+        for k, v in pairs(env) do old_env[k] = v end
+        env[node.var_name] = "any" -- елемент колекції
+        for _, stmt in ipairs(node.body) do
+            walk(stmt)
+        end
+        env = old_env
+        return "void"
+    end
     walk = function(node)
         if not node then error("TypeChecker: got nil node") end
         local checker = Checkers[node.tag]

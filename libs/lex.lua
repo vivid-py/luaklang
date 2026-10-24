@@ -3,6 +3,7 @@ local function lex(source, keywords)
         ["let"] = true, ["if"] = true, ["do"] = true, 
         ["int"] = true, ["float"] = true, ["string"] = true, ["bool"] = true, 
         ["while"] = true, ["return"] = true, ["import"] = true, ["from"] = true,
+        ["for"] = true, ["in"] = true,
     }
     local tokens = {}
     local pos = 1
@@ -35,7 +36,7 @@ local function lex(source, keywords)
         else
             local two_chars = source:sub(pos, pos + 1)
             if two_chars == ">=" or two_chars == "<=" or two_chars == "==" or two_chars == "!=" 
-            or two_chars == "**" or two_chars == "//" then
+            or two_chars == "**" or two_chars == "//" or two_chars == ".." then
                 table.insert(tokens, { type = "SYMBOL", value = two_chars })
                 pos = pos + 2
             else

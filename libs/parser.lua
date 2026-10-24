@@ -37,6 +37,7 @@ local function parse (tokens)
     local parse_fn
     local parse_return
     local parse_import
+    local parse_for
 
     -- 1. ПАРСЕР ВИРАЗІВ (математика, дужки)
         local function parse_primary()
@@ -286,7 +287,51 @@ local function parse (tokens)
         
         return { tag = "Import", name = name, path = path }
     end
-
+    parse_for = function()
+        consume("KEYWORD", "for")
+        local var_name = consume("IDENT").value
+        consume("KEYWORD", "in")
+        
+        -- Перевіряємо, чи це діапазон (чи бачимо число)
+        local start_expr, end_expr, collection_expr
+        local is_range = false
+        
+        if peek().type == "NUMBER" then
+            -- Це діапазон: for i in 0..10
+            start_expr = parse_expression()
+            if peek() and peek().value == ".." then
+                consume("SYMBOL", "..")
+                end_expr = parse_expression()
+                is_range = true
+            else
+                error("Expected '..' in for loop range")
+            end
+        else
+            -- Це колекція: for item in array
+            collection_expr = parse_expression()
+        end
+        
+        consume("KEYWORD", "do")
+        local body = parse_block()
+        consume("KEYWORD", "end")
+        
+        if is_range then
+            return { 
+                tag = "ForRange", 
+                var_name = var_name, 
+                start = start_expr, 
+                finish = end_expr, 
+                body = body 
+            }
+        else
+            return { 
+                tag = "ForIn", 
+                var_name = var_name, 
+                collection = collection_expr, 
+                body = body 
+            }
+        end
+    end
     -- 3. ОСЬ ВОНА, МАГІЯ ТАБЛИЦЬ
     -- Ми кажемо: "якщо бачиш слово 'let' — виклич parse_let", і т.д.
     local StatementParsers = {
@@ -295,6 +340,7 @@ local function parse (tokens)
         ["while"]  = parse_while,
         ["return"] = parse_return,
         ["import"] = parse_import,
+        ["for"] = parse_for,
     }
 
     -- 4. ПАРСЕР БЛОКІВ (використовує таблицю)

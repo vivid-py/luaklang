@@ -1,6 +1,3 @@
-local math = require("std.math")
-print(math.sqrt(9))
-print(math.pow(2, 10))
-print(math.sign((-5)))
-print(math.is_even(4))
-print(math.abs((-7)))
+for i = 1, 5 do
+  print((10 + i))
+end

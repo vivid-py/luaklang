@@ -3,6 +3,7 @@ local KEYWORDS = {
     ["int"] = true, ["float"] = true, ["string"] = true, ["bool"] = true,
     ["true"] = true, ["false"] = true, ["else"] = true, ["end"] = true,
     ["while"] = true, ["return"] = true, ["import"] = true, ["from"] = true,
+    ["for"] = true, ["in"] = true,
 }
 
 local lex = require("libs.lex")

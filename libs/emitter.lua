@@ -37,6 +37,12 @@ local function emit(ast)
             return "(function() local f = io.open(" .. Emitters[node.args[1].tag](node.args[1]) .. ", 'r'); if f then local c = f:read('*a'); f:close(); return c end end)()"
         elseif name_str == "write_file" then
             return ";(function() local f = io.open(" .. Emitters[node.args[1].tag](node.args[1]) .. ", 'w'); if f then f:write(" .. Emitters[node.args[2].tag](node.args[2]) .. "); f:close() end end)()"
+        elseif name_str == "exec" then
+        -- Просто виконує команду в терміналі (os.execute)
+            return "os.execute(" .. Emitters[node.args[1].tag](node.args[1]) .. ")"
+        elseif name_str == "exec_out" then
+        -- Виконує команду і повертає вивід як рядок (io.popen)
+            return "(function() local handle = io.popen(" .. Emitters[node.args[1].tag](node.args[1]) .. ", 'r'); if handle then local res = handle:read('*a'); handle:close(); return res end end)()"
         end
         
         -- Звичайний виклик
@@ -72,6 +78,26 @@ local function emit(ast)
             code = code .. "  " .. Emitters[stmt.tag](stmt) .. "\n"
         end
         
+        code = code .. "end"
+        return code
+    end
+    Emitters["ForRange"] = function(node)
+        local code = "for " .. node.var_name .. " = " .. 
+                    Emitters[node.start.tag](node.start) .. ", " .. 
+                    Emitters[node.finish.tag](node.finish) .. " do\n"
+        for _, stmt in ipairs(node.body) do
+            code = code .. "  " .. Emitters[stmt.tag](stmt) .. "\n"
+        end
+        code = code .. "end"
+        return code
+    end
+
+    Emitters["ForIn"] = function(node)
+        local code = "for _, " .. node.var_name .. " in ipairs(" .. 
+                    Emitters[node.collection.tag](node.collection) .. ") do\n"
+        for _, stmt in ipairs(node.body) do
+            code = code .. "  " .. Emitters[stmt.tag](stmt) .. "\n"
+        end
         code = code .. "end"
         return code
     end
