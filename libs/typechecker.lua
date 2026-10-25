@@ -38,6 +38,13 @@ local function typecheck(ast)
         
         local op = node.op
         
+        if op == ".." then
+            -- Можна склеювати рядки з чим завгодно
+            if left_type == "string" or right_type == "string" then
+                return "string"
+            end
+            error("TypeError: Concatenation requires at least one string")
+        end
         -- Математика: дозволяємо змішувати int та float
         if op == "+" or op == "-" or op == "*" or op == "/" or op == "%" or op == "**" then
             if left_type == "float" or right_type == "float" then

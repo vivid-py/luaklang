@@ -1,3 +1,6 @@
+local script_path = debug.getinfo(1, "S").source:sub(2)  -- прибираємо @
+local script_dir = script_path:match("(.*/)") or "./"
+package.path = script_dir .. "?.lua;" .. script_dir .. "?/init.lua;" .. package.path
 local KEYWORDS = {
     ["let"] = true, ["if"] = true, ["do"] = true,
     ["int"] = true, ["float"] = true, ["string"] = true, ["bool"] = true,
@@ -35,8 +38,18 @@ local function build_file(filepath)
             local dep_path = node.path or node.name
             local dep_luak = dep_path .. ".luak"
             
-            -- Перевіряємо, чи існує файл .luak
+            -- Шукаємо локально (в папці luaktest)
             local f = io.open(dep_luak, "r")
+            
+            -- Якщо локально немає, шукаємо в папці, де лежить luak.lua
+            if not f then
+                local script_dir = debug.getinfo(1, "S").source:sub(2):match("(.*/)") or "./"
+                f = io.open(script_dir .. dep_luak, "r")
+                if f then
+                    dep_luak = script_dir .. dep_luak -- оновлюємо шлях до знайденого файлу
+                end
+            end
+
             if f then
                 f:close()
                 build_file(dep_luak) -- Рекурсивно компілюємо залежність
@@ -57,4 +70,9 @@ build_file(target_file)
 print("\n \n")
 local output_file = target_file:gsub("%.luak$", ".lua")
 print("\n--- Running output --- \n")
-os.execute("lua " .. output_file) -- запускаємо main.lua, а не main.luak!
+
+local script_dir = debug.getinfo(1, "S").source:sub(2):match("(.*/)") or "./"
+
+local lua_path_env = string.format("LUA_PATH='%s?.lua;%s?/init.lua;;' ", script_dir, script_dir)
+
+os.execute(lua_path_env .. "lua " .. output_file)  -- запускаємо main.lua, а не main.luak!
