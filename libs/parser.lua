@@ -20,6 +20,8 @@ local function parse (tokens)
     end
 
     local PRECEDENCE = {
+        ["or"] = 1,
+        ["and"] = 2,
         ["=="] = 5, ["!="] = 5,
         ["<"] = 5,  [">"] = 5, ["<="] = 5, [">="] = 5,
         [".."] = 10,
@@ -41,10 +43,14 @@ local function parse (tokens)
     local parse_for
 
     -- 1. ПАРСЕР ВИРАЗІВ (математика, дужки)
-        local function parse_primary()
+    local function parse_primary()
         local tok = peek()
         if not tok then error("Unexpected end of file in expression") end
-
+        if tok.value == "not" then
+            consume("KEYWORD", "not")
+            local expr = parse_primary()
+            return { tag = "UnaryOp", op = "not", operand = expr }
+        end
         if tok.value == "-" then
             consume("SYMBOL", "-")
             local expr = parse_primary()
@@ -154,23 +160,42 @@ local function parse (tokens)
         -- Ми вже з'їли "let", тому починаємо з імені
         local name = consume("IDENT").value
         consume("SYMBOL", "(")
-        
         local params = {}
-        -- Парсимо параметри: int ab, string bc
+        
+        -- Парсимо параметри: int ab, [string] bc
         while peek() and peek().value ~= ")" do
-            local p_type = consume("KEYWORD").value -- тип (int, string)
-            local p_name = consume("IDENT").value   -- ім'я (ab, bc)
-            table.insert(params, { type = p_type, name = p_name })
+            local p_type = ""
+            
+            -- 1. Визначаємо тип
+            if peek().value == "[" then
+                consume("SYMBOL", "[")
+                p_type = "[" .. consume(peek().type).value .. "]"
+                consume("SYMBOL", "]")
+            elseif peek().type == "KEYWORD" or peek().type == "IDENT" then
+                p_type = consume(peek().type).value
+            else
+                error("Expected type in function parameters")
+            end
+            
+            -- 2. Читаємо ім'я
+            local p_name = consume("IDENT").value   
+            
+            -- 3. ПЕРЕВІРЯЄМО НА ДЕФОЛТНЕ ЗНАЧЕННЯ
+            local default_val = nil
+            if peek() and peek().value == "=" then
+                consume("SYMBOL", "=")
+                default_val = parse_expression()
+            end
+            
+            table.insert(params, { type = p_type, name = p_name, default = default_val })
             
             if peek() and peek().value == "," then consume("SYMBOL", ",") end
         end
         
         consume("SYMBOL", ")")
         consume("KEYWORD", "do") -- твій маркер початку тіла функції
-        
         local body = parse_block()
         consume("KEYWORD", "end")
-        
         return { tag = "Fn", name = name, params = params, body = body }
     end
 
@@ -293,13 +318,13 @@ local function parse (tokens)
         local var_name = consume("IDENT").value
         consume("KEYWORD", "in")
         
-        -- Перевіряємо, чи це діапазон (чи бачимо число)
         local start_expr, end_expr, collection_expr
         local is_range = false
         
         if peek().type == "NUMBER" then
-            -- Це діапазон: for i in 0..10
-            start_expr = parse_expression()
+            -- ОСЬ ТУТ ЗМІНА: передаємо 11, щоб парсер зупинився перед `..`
+            start_expr = parse_expression(11) 
+            
             if peek() and peek().value == ".." then
                 consume("SYMBOL", "..")
                 end_expr = parse_expression()
@@ -308,7 +333,6 @@ local function parse (tokens)
                 error("Expected '..' in for loop range")
             end
         else
-            -- Це колекція: for item in array
             collection_expr = parse_expression()
         end
         

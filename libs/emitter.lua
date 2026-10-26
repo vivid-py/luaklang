@@ -18,7 +18,11 @@ local function emit(ast)
         return "(" .. Emitters[node.left.tag](node.left) .. " " .. op .. " " .. Emitters[node.right.tag](node.right) .. ")"
     end
     Emitters["UnaryOp"] = function(node)
-        return "(-" .. Emitters[node.operand.tag](node.operand) .. ")"
+        if node.op == "not" then
+            return "(not " .. Emitters[node.operand.tag](node.operand) .. ")"
+        else
+            return "(-" .. Emitters[node.operand.tag](node.operand) .. ")"
+        end
     end
 
     Emitters["Call"] = function(node)
@@ -33,7 +37,26 @@ local function emit(ast)
         local name_str = node.name or (node.target and node.target.name)
 
         -- Вбудовані функції
-        if name_str == "read_file" then
+        if name_str == "print" then
+            local args = {}
+            for _, arg in ipairs(node.args) do
+                table.insert(args, Emitters[arg.tag](arg))
+            end
+            -- Використовуємо io.write, щоб НЕ було переносу рядка
+            return "io.write(" .. table.concat(args, ", ") .. "); io.flush()"
+        elseif name_str == "println" then
+            local args = {}
+            for _, arg in ipairs(node.args) do
+                table.insert(args, Emitters[arg.tag](arg))
+            end
+            -- Використовуємо стандартний print, який додає \n
+            return "print(" .. table.concat(args, ", ") .. ")"
+        elseif name_str == "read_key" then
+            -- Цей Lua-код читає 1 символ. Якщо це Escape, він читає ще 2 (для стрілок).
+            return "(function() local c = io.read(1); if c == '\\27' then local c2 = io.read(1); if c2 == '[' or c2 == 'O' then local c3 = io.read(1); return c .. c2 .. c3 else return c .. (c2 or '') end else return c end end)()"
+        elseif name_str == "len" then
+            return "#(" .. Emitters[node.args[1].tag](node.args[1]) .. ")"
+        elseif name_str == "read_file" then
             return "(function() local f = io.open(" .. Emitters[node.args[1].tag](node.args[1]) .. ", 'r'); if f then local c = f:read('*a'); f:close(); return c end end)()"
         elseif name_str == "write_file" then
             return ";(function() local f = io.open(" .. Emitters[node.args[1].tag](node.args[1]) .. ", 'w'); if f then f:write(" .. Emitters[node.args[2].tag](node.args[2]) .. "); f:close() end end)()"
@@ -43,7 +66,24 @@ local function emit(ast)
         elseif name_str == "exec_out" then
         -- Виконує команду і повертає вивід як рядок (io.popen)
             return "(function() local handle = io.popen(" .. Emitters[node.args[1].tag](node.args[1]) .. ", 'r'); if handle then local res = handle:read('*a'); handle:close(); return res end end)()"
-        end
+        elseif name_str == "push" then
+            return "table.insert(" .. Emitters[node.args[1].tag](node.args[1]) .. ", " .. Emitters[node.args[2].tag](node.args[2]) .. ")"
+        -- Вставити за індексом
+        elseif name_str == "insert_at" then
+            -- Додаємо +1 до індексу, бо в luak 0-based, а в Lua 1-based
+            return "table.insert(" .. Emitters[node.args[1].tag](node.args[1]) .. ", " .. Emitters[node.args[2].tag](node.args[2]) .. " + 1, " .. Emitters[node.args[3].tag](node.args[3]) .. ")"
+        elseif name_str == "remove_at" then
+            return "table.remove(" .. Emitters[node.args[1].tag](node.args[1]) .. ", " .. Emitters[node.args[2].tag](node.args[2]) .. " + 1)"
+        -- Отримати довжину рядка або масиву
+        elseif name_str == "len" then
+            return "#(" .. Emitters[node.args[1].tag](node.args[1]) .. ")"
+        elseif name_str == "substring" then
+            -- Теж додаємо +1 до start та end
+            return "string.sub(" .. Emitters[node.args[1].tag](node.args[1]) .. ", " .. Emitters[node.args[2].tag](node.args[2]) .. " + 1, " .. Emitters[node.args[3].tag](node.args[3]) .. " + 1)"
+        elseif name_str == "char_at" then
+            -- Отримати один символ
+            return "string.sub(" .. Emitters[node.args[1].tag](node.args[1]) .. ", " .. Emitters[node.args[2].tag](node.args[2]) .. ", " .. Emitters[node.args[2].tag](node.args[2]) .. ")"
+        end    
         
         -- Звичайний виклик
         local args = {}
@@ -120,6 +160,14 @@ local function emit(ast)
         end
         
         local code = "local function " .. node.name .. "(" .. table.concat(param_names, ", ") .. ")\n"
+        
+        -- ОСЬ ВОНА, МАГІЯ ДЕФОЛТНИХ ЗНАЧЕНЬ
+        for _, p in ipairs(node.params) do
+            if p.default then
+                code = code .. "  if " .. p.name .. " == nil then " .. p.name .. " = " .. Emitters[p.default.tag](p.default) .. " end\n"
+            end
+        end
+        
         for _, stmt in ipairs(node.body) do
             code = code .. "  " .. Emitters[stmt.tag](stmt) .. "\n"
         end

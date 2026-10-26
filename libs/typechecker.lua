@@ -14,7 +14,7 @@ local function typecheck(ast)
     
     Checkers["Identifier"] = function(node)
         if node.name == "args" then return "[string]" end
-        if node.name == "print" or node.name == "read_file" or node.name == "write_file" or node.name == "exec" or node.name == "exec_out" then return "function" end
+        if node.name == "print" or node.name == "println" or node.name == "read_file" or node.name == "write_file" or node.name == "exec" or node.name == "exec_out" or node.name == "read_key" or node.name == "len" or node.name == "push"  or node.name == "insert_at" or node.name == "remove_at" or node.name == "substring" or node.name == "char_at" then return "function" end
         
         local var_type = env[node.name]
         if not var_type then
@@ -37,7 +37,12 @@ local function typecheck(ast)
         local right_type = walk(node.right)
         
         local op = node.op
-        
+        if op == "and" or op == "or" then
+            if left_type ~= "bool" or right_type ~= "bool" then
+                error("TypeError: Operator '" .. op .. "' requires bool operands")
+            end
+            return "bool"
+        end
         if op == ".." then
             -- Можна склеювати рядки з чим завгодно
             if left_type == "string" or right_type == "string" then
@@ -70,6 +75,9 @@ local function typecheck(ast)
 
     Checkers["UnaryOp"] = function(node)
         local operand_type = walk(node.operand)
+        if node.op == "not" and operand_type ~= "bool" then
+            error("TypeError: Operator 'not' requires a bool operand")
+        end
         return operand_type
     end
 
@@ -152,6 +160,14 @@ local function typecheck(ast)
         
         for _, param in ipairs(node.params) do
             env[param.name] = param.type
+            
+            -- Перевіряємо дефолтне значення
+            if param.default then
+                local def_type = walk(param.default)
+                if def_type ~= param.type then
+                    error("TypeError: Default value for '" .. param.name .. "' must be of type " .. param.type)
+                end
+            end
         end
         
         for _, stmt in ipairs(node.body) do
