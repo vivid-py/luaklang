@@ -51,9 +51,6 @@ local function emit(ast)
             end
             -- Використовуємо стандартний print, який додає \n
             return "print(" .. table.concat(args, ", ") .. ")"
-        elseif name_str == "read_key" then
-            -- Цей Lua-код читає 1 символ. Якщо це Escape, він читає ще 2 (для стрілок).
-            return "(function() local c = io.read(1); if c == '\\27' then local c2 = io.read(1); if c2 == '[' or c2 == 'O' then local c3 = io.read(1); return c .. c2 .. c3 else return c .. (c2 or '') end else return c end end)()"
         elseif name_str == "len" then
             return "#(" .. Emitters[node.args[1].tag](node.args[1]) .. ")"
         elseif name_str == "read_file" then
@@ -83,7 +80,26 @@ local function emit(ast)
         elseif name_str == "char_at" then
             -- Отримати один символ
             return "string.sub(" .. Emitters[node.args[1].tag](node.args[1]) .. ", " .. Emitters[node.args[2].tag](node.args[2]) .. ", " .. Emitters[node.args[2].tag](node.args[2]) .. ")"
-        end    
+        elseif name_str == "read_key" then
+         -- 1. Читаємо перший байт. 
+         -- 2. Якщо це ESC (\27), намагаємось прочитати другий байт.
+         -- 3. Якщо другого байта немає (nil або "") - це чистий ESC.
+         -- 4. Якщо другий байт є, але це НЕ '[' і НЕ 'O' - це все одно чистий ESC (а сміття ігноруємо).
+         return "(function() local c = io.read(1); if not c then return '' end; if c == '\\27' then local c2 = io.read(1); if not c2 or c2 == '' then return '\\27' end; if c2 == '[' or c2 == 'O' then local c3 = io.read(1); return c .. c2 .. (c3 or '') else return '\\27' end else local b = string.byte(c); if b >= 128 then local n = 0; if b >= 240 then n = 3 elseif b >= 224 then n = 2 elseif b >= 192 then n = 1 end; local rest = ''; while #rest < n do local chunk = io.read(1); if not chunk then break end; rest = rest .. chunk end; return c .. rest else return c end end end)()"
+        elseif name_str == "utf8_len" then
+            return "utf8.len(" .. Emitters[node.args[1].tag](node.args[1]) .. ")"
+        elseif name_str == "split_lines" then
+            -- Надійний спліт: додаємо \n в кінець, щоб захопити останній рядок,
+            -- і НЕ фільтруємо порожні рядки.
+            return "(function(text) local lines = {}; for line in (text .. '\\n'):gmatch('(.-)\\n') do table.insert(lines, line) end; return lines end)(" .. Emitters[node.args[1].tag](node.args[1]) .. ")"
+        elseif name_str == "join_lines" then
+            -- Склеює масив рядків у один текст
+            return "table.concat(" .. Emitters[node.args[1].tag](node.args[1]) .. ", '\\n')" 
+        elseif name_str == "utf8_sub" then
+            -- Безпечне обрізання: якщо finish виходить за межі, беремо кінець рядка
+            return "(function(s, i, j) local start = utf8.offset(s, i + 1); if not start then return '' end; local finish = utf8.offset(s, j + 2); if not finish then finish = #s + 1 end; return string.sub(s, start, finish - 1) end)(" .. Emitters[node.args[1].tag](node.args[1]) .. ", " .. Emitters[node.args[2].tag](node.args[2]) .. ", " .. Emitters[node.args[3].tag](node.args[3]) .. ")"
+        end
+  
         
         -- Звичайний виклик
         local args = {}

@@ -147,7 +147,7 @@ local function parse (tokens)
 
             if not prec or prec < min_prec then break end
             
-            consume("SYMBOL")
+            consume(op_tok.type)
             local right = parse_expression(prec + 1)
             
             left = { tag = "BinaryOp", op = op, left = left, right = right }

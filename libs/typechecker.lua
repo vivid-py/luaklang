@@ -14,7 +14,7 @@ local function typecheck(ast)
     
     Checkers["Identifier"] = function(node)
         if node.name == "args" then return "[string]" end
-        if node.name == "print" or node.name == "println" or node.name == "read_file" or node.name == "write_file" or node.name == "exec" or node.name == "exec_out" or node.name == "read_key" or node.name == "len" or node.name == "push"  or node.name == "insert_at" or node.name == "remove_at" or node.name == "substring" or node.name == "char_at" then return "function" end
+        if node.name == "print" or node.name == "println" or node.name == "read_file" or node.name == "write_file" or node.name == "exec" or node.name == "exec_out" or node.name == "read_key" or node.name == "len" or node.name == "push"  or node.name == "insert_at" or node.name == "remove_at" or node.name == "substring" or node.name == "char_at" or node.name == "utf8_len" or node.name == "utf8_sub" or node.name == "split_lines" or node.name == "join_lines" then return "function" end
         
         local var_type = env[node.name]
         if not var_type then
@@ -84,7 +84,9 @@ local function typecheck(ast)
     Checkers["Assign"] = function(node)
         local target_type = walk(node.target)
         local value_type = walk(node.value)
-        if target_type ~= value_type then
+        
+        -- ДОДАЙ target_type ~= "any"
+        if target_type ~= "any" and target_type ~= value_type and value_type ~= "any" then
             error("TypeError: Cannot assign " .. value_type .. " to " .. target_type)
         end
     end
@@ -133,8 +135,21 @@ local function typecheck(ast)
     end
     
     Checkers["Call"] = function(node)
+     -- Отримуємо ім'я функції (вона може бути в node.name або node.target.name)
+        local name_str = node.name or (node.target and node.target.name)
+
         if node.target then walk(node.target) end
         for _, arg in ipairs(node.args) do walk(arg) end
+
+        -- Перевіряємо вбудовані функції, які повертають конкретні типи
+        if name_str == "utf8_len" or name_str == "len" then
+            return "int"
+        elseif name_str == "utf8_sub" or name_str == "substring" or name_str == "char_at" then
+            return "string"
+        elseif name_str == "read_key" or name_str == "exec_out" or name_str == "read_file" then
+            return "string"
+        end
+
         return "any"
     end
 
@@ -164,7 +179,7 @@ local function typecheck(ast)
             -- Перевіряємо дефолтне значення
             if param.default then
                 local def_type = walk(param.default)
-                if def_type ~= param.type then
+                if def_type ~= "any" and def_type ~= param.type then
                     error("TypeError: Default value for '" .. param.name .. "' must be of type " .. param.type)
                 end
             end

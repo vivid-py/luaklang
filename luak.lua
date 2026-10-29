@@ -38,21 +38,34 @@ local function build_file(filepath)
             local dep_path = node.path or node.name
             local dep_luak = dep_path .. ".luak"
             
-            -- Шукаємо локально (в папці luaktest)
-            local f = io.open(dep_luak, "r")
+            -- Отримуємо папку, в якій лежить поточний файл (наприклад, "libs/tui/")
+            local current_dir = filepath:match("(.*/)") or "./"
             
-            -- Якщо локально немає, шукаємо в папці, де лежить luak.lua
+            local f = nil
+            
+            -- 1. Шукаємо в тій самій папці, де лежить поточний файл
+            f = io.open(current_dir .. dep_luak, "r")
+            if f then
+                dep_luak = current_dir .. dep_luak
+            else
+                -- 2. Шукаємо в корені проєкту
+                f = io.open(dep_luak, "r")
+            end
+            
+            -- 3. Якщо не знайшли, шукаємо в папці компілятора (std/)
             if not f then
                 local script_dir = debug.getinfo(1, "S").source:sub(2):match("(.*/)") or "./"
                 f = io.open(script_dir .. dep_luak, "r")
                 if f then
-                    dep_luak = script_dir .. dep_luak -- оновлюємо шлях до знайденого файлу
+                    dep_luak = script_dir .. dep_luak 
                 end
             end
 
             if f then
                 f:close()
                 build_file(dep_luak) -- Рекурсивно компілюємо залежність
+            else
+                print("Warning: Could not find module '" .. dep_path .. "'")
             end
         end
     end
@@ -68,11 +81,14 @@ local target_file = arg[1] or "main.luak"
 build_file(target_file)
 
 print("\n \n")
+-- Запуск
 local output_file = target_file:gsub("%.luak$", ".lua")
 print("\n--- Running output --- \n")
 
 local script_dir = debug.getinfo(1, "S").source:sub(2):match("(.*/)") or "./"
+local current_dir = target_file:match("(.*/)") or "./"
 
-local lua_path_env = string.format("LUA_PATH='%s?.lua;%s?/init.lua;;' ", script_dir, script_dir)
+-- Додаємо current_dir, щоб Lua бачила локальні файли
+local lua_path_env = string.format("LUA_PATH='%s?.lua;%s?/init.lua;%s?.lua;%s?/init.lua;;' ", current_dir, current_dir, script_dir, script_dir)
 
-os.execute(lua_path_env .. "lua " .. output_file)  -- запускаємо main.lua, а не main.luak!
+os.execute(lua_path_env .. "lua " .. output_file)
